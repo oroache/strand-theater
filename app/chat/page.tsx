@@ -4,9 +4,28 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useState } from "react";
 
+// Three pulsing dots shown in place of assistant text until the first
+// token of a response arrives.
+function ThinkingDots() {
+  return (
+    <span className="flex items-center gap-1 py-0.5">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 dark:bg-zinc-500"
+          style={{ animationDelay: `${i * 150}ms` }}
+        />
+      ))}
+    </span>
+  );
+}
+
+const assistantBubbleClass =
+  "max-w-[75%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100";
+
 export default function ChatPage() {
   const [input, setInput] = useState("");
-  const { messages, sendMessage } = useChat({
+  const { messages, status, sendMessage } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
   });
 
@@ -23,28 +42,58 @@ export default function ChatPage() {
 
       <div className="flex-1 overflow-y-auto rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
         <div className="flex flex-col gap-3">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${
-                message.role === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
+          {messages.map((message, index) => {
+            const hasText = message.parts.some(
+              (part) => part.type === "text" && part.text.length > 0
+            );
+            // The response has started streaming but no text has arrived
+            // yet (e.g. the model is still "thinking") — show dots in
+            // place of this message's content instead of a separate bubble.
+            const isPending =
+              index === messages.length - 1 &&
+              message.role === "assistant" &&
+              status === "streaming" &&
+              !hasText;
+
+            return (
               <div
-                className={`max-w-[75%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm ${
-                  message.role === "user"
-                    ? "bg-blue-600 text-white"
-                    : "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+                key={message.id}
+                className={`flex ${
+                  message.role === "user" ? "justify-end" : "justify-start"
                 }`}
               >
-                {message.parts.map((part, index) =>
-                  part.type === "text" ? (
-                    <span key={index}>{part.text}</span>
-                  ) : null
-                )}
+                <div
+                  className={
+                    message.role === "user"
+                      ? "max-w-[75%] whitespace-pre-wrap rounded-lg bg-blue-600 px-3 py-2 text-sm text-white"
+                      : assistantBubbleClass
+                  }
+                >
+                  {isPending ? (
+                    <ThinkingDots />
+                  ) : (
+                    <span className="animate-in fade-in duration-300">
+                      {message.parts.map((part, partIndex) =>
+                        part.type === "text" ? (
+                          <span key={partIndex}>{part.text}</span>
+                        ) : null
+                      )}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Request sent, response not started yet: no assistant message
+              exists in the list at all, so render a standalone bubble. */}
+          {status === "submitted" && (
+            <div className="flex justify-start">
+              <div className={assistantBubbleClass}>
+                <ThinkingDots />
               </div>
             </div>
-          ))}
+          )}
         </div>
       </div>
 

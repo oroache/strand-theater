@@ -25,13 +25,14 @@ const assistantBubbleClass =
 
 export default function ChatPage() {
   const [input, setInput] = useState("");
-  const { messages, status, sendMessage } = useChat({
+  const { messages, status, sendMessage, stop } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
   });
+  const isBusy = status === "submitted" || status === "streaming";
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || isBusy) return;
     sendMessage({ text: input });
     setInput("");
   };
@@ -104,12 +105,22 @@ export default function ChatPage() {
           placeholder="Ask about a movie..."
           className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:focus:border-zinc-600"
         />
-        <button
-          type="submit"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          Send
-        </button>
+        {isBusy ? (
+          <button
+            type="button"
+            onClick={() => stop()}
+            className="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            type="submit"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Send
+          </button>
+        )}
       </form>
     </div>
   );

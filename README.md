@@ -20,6 +20,36 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Tools
+
+### `searchMovie`
+
+Defined in `app/api/chat/lib/tools.ts` and wired into the chat route. Looks up a movie by title using the [OMDB API](http://www.omdbapi.com/).
+
+**Input schema** (Zod):
+
+```ts
+z.object({
+  title: z.string().describe("the movie title to search for"),
+});
+```
+
+**Success** — resolves with:
+
+```ts
+{
+  Title: string;
+  Year: string;
+  Poster: string;
+  Plot: string;
+  imdbRating: string;
+}
+```
+
+Rendered in the chat UI (`app/chat/page.tsx`) as a `MovieResultCard` on the tool part's `output-available` state.
+
+**Failure** — if OMDB returns no match, the tool throws an `Error` with a readable message (e.g. `OMDB search for "<title>" failed: Movie not found!`). This surfaces as the tool part's `output-error` state and is rendered as a `SearchMovieErrorCard` showing the attempted title.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

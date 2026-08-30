@@ -1,8 +1,13 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, type InferUITools, type UIMessage } from "ai";
+import { Film, Star, SearchX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { searchMovie } from "../api/chat/lib/tools";
+
+type ChatTools = InferUITools<{ searchMovie: typeof searchMovie }>;
+type ChatMessage = UIMessage<unknown, never, ChatTools>;
 
 // Distance (px) from the bottom of the scroll container within which we
 // still consider the user "at the bottom" for auto-scroll purposes.
@@ -27,11 +32,78 @@ function ThinkingDots() {
 const assistantBubbleClass =
   "max-w-[75%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100";
 
+// Shown while the searchMovie tool call's input is still streaming in or
+// has arrived but hasn't executed yet — the title may be partial or absent.
+function SearchMovieLoadingCard({ title }: { title: string | undefined }) {
+  return (
+    <div className="flex max-w-[75%] items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+      <Film className="h-4 w-4 shrink-0 animate-pulse" />
+      <span>Looking up {title ? `"${title}"` : "movie"}...</span>
+    </div>
+  );
+}
+
+// Successful searchMovie result: poster, title, year, and rating in a
+// dedicated card distinct from the plain chat bubble.
+function MovieResultCard({
+  movie,
+}: {
+  movie: { Title: string; Year: string; Poster: string; imdbRating: string };
+}) {
+  const hasPoster = movie.Poster && movie.Poster !== "N/A";
+
+  return (
+    <div className="flex w-64 max-w-[75%] gap-3 overflow-hidden rounded-lg border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      {hasPoster ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={movie.Poster}
+          alt={`${movie.Title} poster`}
+          className="h-24 w-16 shrink-0 rounded object-cover"
+        />
+      ) : (
+        <div className="flex h-24 w-16 shrink-0 items-center justify-center rounded bg-zinc-100 dark:bg-zinc-800">
+          <Film className="h-6 w-6 text-zinc-400" />
+        </div>
+      )}
+      <div className="flex min-w-0 flex-col justify-center gap-1">
+        <span className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          {movie.Title}
+        </span>
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+          {movie.Year}
+        </span>
+        {movie.imdbRating && movie.imdbRating !== "N/A" && (
+          <span className="flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+            <Star className="h-3 w-3 fill-current" />
+            {movie.imdbRating}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Shown when the searchMovie tool call errors (e.g. OMDB found no match).
+// Styled distinctly from both the loading card and the general chat error
+// bubble so a failed lookup reads as its own thing.
+function SearchMovieErrorCard({ title }: { title: string | undefined }) {
+  return (
+    <div className="flex max-w-[75%] items-center gap-2 rounded-lg border border-dashed border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-800 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300">
+      <SearchX className="h-4 w-4 shrink-0" />
+      <span>
+        Couldn&apos;t find {title ? `"${title}"` : "that movie"}.
+      </span>
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const [input, setInput] = useState("");
-  const { messages, status, sendMessage, stop } = useChat({
-    transport: new DefaultChatTransport({ api: "/api/chat" }),
-  });
+  const { messages, status, error, sendMessage, stop, regenerate } =
+    useChat<ChatMessage>({
+      transport: new DefaultChatTransport({ api: "/api/chat" }),
+    });
   const isBusy = status === "submitted" || status === "streaming";
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -84,7 +156,7 @@ export default function ChatPage() {
     } else {
       setShowJumpToLatest(true);
     }
-  }, [messages]);
+  }, [messages, error]);
 
   const jumpToLatest = () => {
     const el = scrollContainerRef.current;
@@ -143,12 +215,43 @@ export default function ChatPage() {
                     {isPending ? (
                       <ThinkingDots />
                     ) : (
-                      <span className="animate-in fade-in duration-300">
-                        {message.parts.map((part, partIndex) =>
-                          part.type === "text" ? (
-                            <span key={partIndex}>{part.text}</span>
-                          ) : null
-                        )}
+                      <span className="flex flex-col gap-2 animate-in fade-in duration-300">
+                        {message.parts.map((part, partIndex) => {
+                          if (part.type === "text") {
+                            return <span key={partIndex}>{part.text}</span>;
+                          }
+                          if (part.type === "tool-searchMovie") {
+                            if (
+                              part.state === "input-streaming" ||
+                              part.state === "input-available"
+                            ) {
+                              return (
+                                <SearchMovieLoadingCard
+                                  key={partIndex}
+                                  title={part.input?.title}
+                                />
+                              );
+                            }
+                            if (part.state === "output-available") {
+                              return (
+                                <MovieResultCard
+                                  key={partIndex}
+                                  movie={part.output}
+                                />
+                              );
+                            }
+                            if (part.state === "output-error") {
+                              return (
+                                <SearchMovieErrorCard
+                                  key={partIndex}
+                                  title={part.input?.title}
+                                />
+                              );
+                            }
+                            return null;
+                          }
+                          return null;
+                        })}
                       </span>
                     )}
                   </div>
@@ -163,6 +266,26 @@ export default function ChatPage() {
               <div className="flex justify-start">
                 <div className={assistantBubbleClass}>
                   <ThinkingDots />
+                </div>
+              </div>
+            )}
+
+            {/* The request failed (network error, or an error part streamed
+                back from the server) — surface it instead of silently
+                reverting to idle. */}
+            {error && (
+              <div className="flex justify-start">
+                <div className="flex max-w-[75%] flex-col items-start gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+                  <span>
+                    {error.message || "Something went wrong. Please try again."}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => regenerate()}
+                    className="text-xs font-medium underline underline-offset-2 hover:no-underline"
+                  >
+                    Try again
+                  </button>
                 </div>
               </div>
             )}

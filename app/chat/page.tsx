@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type InferUITools, type UIMessage } from "ai";
-import { Film, Star, SearchX } from "lucide-react";
+import { Film, Star, SearchX, Clock } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { searchMovie } from "../api/chat/lib/tools";
 import { idleTimeoutFetch } from "./lib/idle-timeout-fetch";
@@ -97,6 +97,14 @@ function SearchMovieErrorCard({ title }: { title: string | undefined }) {
       </span>
     </div>
   );
+}
+
+// Distinguishes a rate-limit failure from other errors (network issues,
+// server errors) so it can get its own visual treatment instead of the
+// generic red error bubble.
+function isRateLimitError(message: string) {
+  const lower = message.toLowerCase();
+  return lower.includes("rate limit") || lower.includes("429");
 }
 
 export default function ChatPage() {
@@ -276,8 +284,27 @@ export default function ChatPage() {
 
             {/* The request failed (network error, or an error part streamed
                 back from the server) — surface it instead of silently
-                reverting to idle. */}
-            {error && (
+                reverting to idle. A rate-limit failure gets its own
+                amber styling so it doesn't read as a connection problem. */}
+            {error && isRateLimitError(error.message || "") && (
+              <div className="flex justify-start">
+                <div className="flex max-w-[75%] flex-col items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="h-4 w-4 shrink-0" />
+                    You&apos;re sending messages too quickly. Please wait a
+                    moment before trying again.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => regenerate()}
+                    className="text-xs font-medium underline underline-offset-2 hover:no-underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              </div>
+            )}
+            {error && !isRateLimitError(error.message || "") && (
               <div className="flex justify-start">
                 <div className="flex max-w-[75%] flex-col items-start gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
                   <span>

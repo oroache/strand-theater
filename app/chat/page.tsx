@@ -48,10 +48,19 @@ function SearchMovieLoadingCard({ title }: { title: string | undefined }) {
 // dedicated card distinct from the plain chat bubble.
 function MovieResultCard({
   movie,
+  searchedTitle,
 }: {
   movie: { Title: string; Year: string; Poster: string; imdbRating: string };
+  // What the user actually searched for — used as a fallback title when
+  // the tool result is missing or malformed (e.g. `movie.Title` isn't a
+  // real string), so the card never silently renders with no title at all.
+  searchedTitle: string | undefined;
 }) {
   const hasPoster = movie.Poster && movie.Poster !== "N/A";
+  const displayTitle =
+    typeof movie.Title === "string" && movie.Title.trim().length > 0
+      ? movie.Title
+      : (searchedTitle ?? "Details unavailable");
 
   return (
     <div className="flex w-64 max-w-[75%] gap-3 overflow-hidden rounded-lg border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -59,7 +68,7 @@ function MovieResultCard({
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={movie.Poster}
-          alt={`${movie.Title} poster`}
+          alt={`${displayTitle} poster`}
           className="h-24 w-16 shrink-0 rounded object-cover"
         />
       ) : (
@@ -69,7 +78,7 @@ function MovieResultCard({
       )}
       <div className="flex min-w-0 flex-col justify-center gap-1">
         <span className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          {movie.Title}
+          {displayTitle}
         </span>
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
           {movie.Year}
@@ -298,6 +307,7 @@ export default function ChatPage() {
                                 <MovieResultCard
                                   key={partIndex}
                                   movie={part.output}
+                                  searchedTitle={part.input?.title}
                                 />
                               );
                             }

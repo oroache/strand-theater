@@ -107,6 +107,49 @@ function isRateLimitError(message: string) {
   return lower.includes("rate limit") || lower.includes("429");
 }
 
+const EXAMPLE_PROMPTS = [
+  "Tell me about Inception",
+  "Recommend a good sci-fi movie",
+  "What's a highly-rated movie from the 90s?",
+];
+
+// Shown before the first message is sent, in place of a blank scroll area.
+function EmptyState({
+  onSelectPrompt,
+}: {
+  onSelectPrompt: (prompt: string) => void;
+}) {
+  return (
+    <div className="flex min-h-[22rem] flex-col items-center justify-center gap-4 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
+        <Film className="h-6 w-6 text-zinc-500 dark:text-zinc-400" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+          Ask me about a movie
+        </h2>
+        <p className="max-w-xs text-sm text-zinc-500 dark:text-zinc-400">
+          I can look up ratings, posters, and details, or just talk movies
+          with you.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {EXAMPLE_PROMPTS.map((prompt) => (
+          <button
+            key={prompt}
+            type="button"
+            onClick={() => onSelectPrompt(prompt)}
+            className="flex items-center gap-1.5 rounded-full border border-zinc-200 px-3 py-1.5 text-sm text-zinc-700 transition-colors hover:border-zinc-300 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-300 dark:hover:border-zinc-700 dark:hover:bg-zinc-900"
+          >
+            <Film className="h-3.5 w-3.5 shrink-0 text-zinc-400 dark:text-zinc-500" />
+            {prompt}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const [input, setInput] = useState("");
   const { messages, status, error, sendMessage, stop, regenerate } =
@@ -197,6 +240,12 @@ export default function ChatPage() {
           className="h-full overflow-y-auto rounded-lg border border-zinc-200 p-4 dark:border-zinc-800"
         >
           <div className="flex flex-col gap-3">
+            {messages.length === 0 && !error && (
+              <EmptyState
+                onSelectPrompt={(prompt) => sendMessage({ text: prompt })}
+              />
+            )}
+
             {messages.map((message, index) => {
               const hasText = message.parts.some(
                 (part) => part.type === "text" && part.text.length > 0

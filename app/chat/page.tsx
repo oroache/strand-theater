@@ -5,6 +5,7 @@ import { DefaultChatTransport, type InferUITools, type UIMessage } from "ai";
 import { Film, Star, SearchX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { searchMovie } from "../api/chat/lib/tools";
+import { idleTimeoutFetch } from "./lib/idle-timeout-fetch";
 
 type ChatTools = InferUITools<{ searchMovie: typeof searchMovie }>;
 type ChatMessage = UIMessage<unknown, never, ChatTools>;
@@ -102,7 +103,10 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const { messages, status, error, sendMessage, stop, regenerate } =
     useChat<ChatMessage>({
-      transport: new DefaultChatTransport({ api: "/api/chat" }),
+      transport: new DefaultChatTransport({
+        api: "/api/chat",
+        fetch: idleTimeoutFetch,
+      }),
     });
   const isBusy = status === "submitted" || status === "streaming";
 

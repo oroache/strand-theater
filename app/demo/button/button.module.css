@@ -1,0 +1,238 @@
+/*
+ * All motion here is expressed with `transform` and `opacity` only (plus a
+ * single `background-color`, which is compositor-cheap and never triggers
+ * layout). Nothing here ever transitions `width`/`height`/`padding` directly.
+ * Where the box visually needs to resize (idle "Send" <-> icon-only loading
+ * <-> "Retry"), page.tsx does a FLIP: it lets the new width apply instantly
+ * (an ordinary, un-animated layout change) and then fakes the *appearance*
+ * of a smooth resize by scaling that instant jump away with `scaleX`, which
+ * the compositor can animate for free.
+ */
+
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
+  outline: none;
+  background-color: #18181b; /* zinc-900, idle */
+
+  /*
+   * 160ms ease: color is the one non-transform property allowed to animate
+   * directly (it's compositor-cheap, no reflow). 160ms matches the content
+   * crossfade duration below so the button's color and its label change
+   * arrive together instead of one visibly lagging the other.
+   */
+  transition: background-color 160ms ease;
+}
+
+.button:disabled {
+  cursor: wait;
+}
+
+/* Compact horizontal padding for the icon-only states; this is an instant,
+   un-animated layout change, not a transition target — the FLIP scaleX in
+   page.tsx is what makes the resulting width change *look* smooth. */
+.button[data-state="loading"],
+.button[data-state="success"] {
+  padding-left: 0.875rem;
+  padding-right: 0.875rem;
+}
+
+.button[data-state="idle"]:hover,
+.button[data-state="idle"]:focus-visible {
+  background-color: #3f3f46; /* zinc-700 */
+}
+.button[data-state="idle"]:focus-visible {
+  outline: 2px solid #71717a; /* zinc-500 */
+  outline-offset: 2px;
+}
+:global(.dark) .button[data-state="idle"] {
+  background-color: #f4f4f5; /* zinc-100: a near-black button would nearly
+                                  vanish against this app's near-black dark
+                                  background, so idle flips light-on-dark */
+  color: #18181b;
+}
+:global(.dark) .button[data-state="idle"]:hover,
+:global(.dark) .button[data-state="idle"]:focus-visible {
+  background-color: #d4d4d8; /* zinc-300 */
+}
+
+.button[data-state="loading"] {
+  background-color: #2563eb; /* blue-600 */
+}
+.button[data-state="success"] {
+  background-color: #16a34a; /* green-600 */
+}
+.button[data-state="error"] {
+  background-color: #dc2626; /* red-600 */
+}
+
+/*
+ * Shake: a CSS `animation` (not `transition`) restarts on its own whenever
+ * the computed `animation-name` starts matching an element — here, the
+ * instant [data-state="error"] becomes true. That means no JS is needed to
+ * "fire" it, and because the keyframes end back at translateX(0) with the
+ * default animation-iteration-count of 1, it plays exactly once and stops
+ * rather than looping.
+ *
+ * 400ms, 5 decaying beats (8px -> 6px -> 4px -> 2px -> 1px): long enough to
+ * read as a deliberate "no" rather than a glitch, short enough not to block
+ * the next click. Decaying amplitude reads as a damped physical wobble
+ * settling to rest, rather than a mechanical back-and-forth loop.
+ */
+.button[data-state="error"] {
+  animation: shake 400ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes shake {
+  10% {
+    transform: translateX(-8px);
+  }
+  30% {
+    transform: translateX(6px);
+  }
+  50% {
+    transform: translateX(-4px);
+  }
+  70% {
+    transform: translateX(2px);
+  }
+  90% {
+    transform: translateX(-1px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* Owns the FLIP width-morph transform (set inline from page.tsx). Kept on
+   its own element, separate from .button, so it never fights the shake
+   keyframes above for control of .button's own `transform`. */
+.morph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Owns the counter-scale that cancels .morph's stretch/squash so the text
+   and icons inside never look distorted mid-resize. Also the positioning
+   context for the absolutely-placed exiting layer during a crossfade. */
+.inner {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.layer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+/*
+ * Entering layer (the new label/icon, rendered in normal flow so it's what
+ * actually sizes the button): starts offset+transparent, then transitions
+ * to its resting position. `layerShown` is added a couple of frames after
+ * mount (see useAfterMount in page.tsx) so the browser has a chance to
+ * paint the "from" state before the transition to the "to" state begins.
+ *
+ * 160ms cubic-bezier(0, 0, 0.2, 1) ("decelerate"): fast start, gentle
+ * finish — reads as the new content arriving and settling into place.
+ * 6px of travel: enough to register as motion, small enough to stay a
+ * micro-interaction rather than a distraction.
+ */
+.layerEnter {
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 160ms cubic-bezier(0, 0, 0.2, 1),
+    transform 160ms cubic-bezier(0, 0, 0.2, 1);
+}
+.layerEnter.layerShown {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/*
+ * Exiting layer (the previous label/icon, a snapshot rendered on top while
+ * it fades away): starts fully visible in place, then transitions to
+ * offset+transparent. Absolutely positioned so it never affects layout —
+ * only the in-flow entering layer above determines the button's width.
+ *
+ * 160ms cubic-bezier(0.4, 0, 1, 1) ("accelerate"): slow start, fast finish
+ * — reads as the old content being pushed out of the way, the mirror image
+ * of the entering easing. Same duration as the enter so both halves of the
+ * crossfade finish together.
+ */
+.layerExit {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 160ms cubic-bezier(0.4, 0, 1, 1),
+    transform 160ms cubic-bezier(0.4, 0, 1, 1);
+}
+.layerExit.layerLeft {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/*
+ * Success checkmark "morph": a back-out easing whose curve overshoots past
+ * its own end value (the 1.56 control point) before settling, which reads
+ * as a springy pop rather than a flat fade. Reserved for the success
+ * confirmation specifically, so it stands out from the neutral slide used
+ * for the other three states.
+ *
+ * 240ms: 80ms longer than the standard crossfade, because the overshoot
+ * needs enough runway to actually be visible before it settles — a
+ * confirmation that's over too fast doesn't get to read as celebratory.
+ */
+.layerMorph {
+  opacity: 0;
+  transform: scale(0.5);
+  transition:
+    opacity 240ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.layerMorph.layerShown {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.spinner {
+  composes: icon;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  /*
+   * linear, infinite: a loading spinner has no "arrival" to ease toward, it
+   * just needs to read as constant ongoing motion — any easing would make
+   * it visibly speed up/slow down once per turn, which looks like stutter
+   * rather than progress. 700ms/turn is brisk without feeling frantic.
+   */
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

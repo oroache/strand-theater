@@ -28,6 +28,10 @@ function randomDelayMs() {
   return MIN_LOADING_MS + Math.random() * (MAX_LOADING_MS - MIN_LOADING_MS);
 }
 
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 // Flips true two animation frames after mount. Two, not one: a single rAF
 // sometimes lands in the same paint as the initial render, so the browser
 // never gets a chance to commit the "from" style before jumping to the
@@ -98,7 +102,8 @@ export default function ButtonDemoPage() {
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
-    return () => timersRef.current.forEach(clearTimeout);
+    const timers = timersRef.current;
+    return () => timers.forEach(clearTimeout);
   }, []);
 
   function schedule(fn: () => void, ms: number) {
@@ -143,6 +148,17 @@ export default function ButtonDemoPage() {
     const newWidth = button.getBoundingClientRect().width;
     if (newWidth === 0 || Math.abs(newWidth - oldWidth) < 0.5) return;
 
+    if (prefersReducedMotion()) {
+      // Still a real, un-transitioned width change — the box just snaps
+      // straight to its new size instead of easing there. The state change
+      // itself isn't hidden, only the motion is.
+      morph.style.transition = "none";
+      morph.style.transform = "scaleX(1)";
+      inner.style.transition = "none";
+      inner.style.transform = "scaleX(1)";
+      return;
+    }
+
     const scale = oldWidth / newWidth;
 
     morph.style.transition = "none";
@@ -164,12 +180,16 @@ export default function ButtonDemoPage() {
     });
   }, [status]);
 
-  function handleClick() {
+  // `forced` skips the coin flip and always resolves to that outcome —
+  // still goes through the loading delay first, so "Force Success" and
+  // "Force Error" trigger the full transition rather than jump-cutting past
+  // the loading state.
+  function trigger(forced?: "success" | "error") {
     if (statusRef.current === "loading") return;
 
     goTo("loading");
     schedule(() => {
-      const outcome: Status = Math.random() < 0.5 ? "success" : "error";
+      const outcome: Status = forced ?? (Math.random() < 0.5 ? "success" : "error");
       goTo(outcome);
       if (outcome === "success") {
         schedule(() => goTo("idle"), SUCCESS_HOLD_MS);
@@ -190,7 +210,7 @@ export default function ButtonDemoPage() {
         <button
           ref={buttonRef}
           type="button"
-          onClick={handleClick}
+          onClick={() => trigger()}
           disabled={status === "loading"}
           data-state={status}
           className={styles.button}
@@ -205,6 +225,40 @@ export default function ButtonDemoPage() {
 
         <span className="text-sm text-zinc-500">status: {status}</span>
       </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => trigger("success")}
+          disabled={status === "loading"}
+          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          Force Success
+        </button>
+        <button
+          type="button"
+          onClick={() => trigger("error")}
+          disabled={status === "loading"}
+          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          Force Error
+        </button>
+      </div>
+
+      <p className="max-w-prose text-sm text-zinc-500">
+        The motion is scaled to how surprising each change is: the label/icon
+        crossfade and the button&apos;s width both animate over 160–220ms, with
+        incoming content decelerating in and outgoing content accelerating
+        out — the usual pairing for swapping content in place, with the
+        (transform-only) width settling just after the content so the box
+        never outruns what&apos;s inside it. The error shake plays once over
+        400ms with decaying amplitude, reading as a damped &ldquo;no&rdquo;
+        rather than a glitch. The success checkmark alone uses a back-out
+        easing that briefly overshoots before settling, over 240ms — a
+        springier feel reserved for positive confirmation. All of it respects
+        prefers-reduced-motion: the shake and easing curves drop out, but the
+        state changes themselves still land instantly rather than disappear.
+      </p>
     </div>
   );
 }

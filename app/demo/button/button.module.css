@@ -236,3 +236,39 @@
     transform: rotate(360deg);
   }
 }
+
+/*
+ * Reduced motion: every state change here is also a feedback signal (a new
+ * label, a new color, a shake meaning "no") — so nothing is hidden, only the
+ * easing/travel/oscillation that gets it there. Each rule below collapses
+ * straight to its transition's end state with no `transition`/`animation`,
+ * which makes the change land in a single frame instead of being removed.
+ * (The width-morph, driven by inline styles in page.tsx rather than here,
+ * has its own `prefersReducedMotion()` check that does the same thing.)
+ * The spinner's `spin` keyframe is intentionally left alone: it's the
+ * ongoing "work is happening" signal itself, not a one-off transition, and
+ * freezing it would read as the button being stuck rather than as reduced
+ * motion.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .button[data-state="error"] {
+    animation: none;
+  }
+
+  .layerEnter,
+  .layerExit,
+  .layerMorph {
+    transition: none;
+  }
+
+  .layerEnter,
+  .layerMorph {
+    opacity: 1;
+    transform: none;
+  }
+
+  .layerExit.layerLeft {
+    opacity: 0;
+    transform: none;
+  }
+}

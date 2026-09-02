@@ -159,8 +159,11 @@ function EmptyState({
   );
 }
 
+const MAX_MESSAGE_LENGTH = 500;
+
 export default function ChatPage() {
   const [input, setInput] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
   const { messages, status, error, sendMessage, stop, regenerate } =
     useChat<ChatMessage>({
       transport: new DefaultChatTransport({
@@ -232,7 +235,17 @@ export default function ChatPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isBusy) return;
+    if (isBusy) return;
+    if (!input.trim()) {
+      setValidationError("Please enter a message");
+      return;
+    }
+    if (input.length > MAX_MESSAGE_LENGTH) {
+      setValidationError(
+        `Message is too long (${MAX_MESSAGE_LENGTH} characters max)`
+      );
+      return;
+    }
     sendMessage({ text: input });
     setInput("");
   };
@@ -393,29 +406,39 @@ export default function ChatPage() {
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about a movie..."
-          className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:focus:border-zinc-600"
-        />
-        {isBusy ? (
-          <button
-            type="button"
-            onClick={() => stop()}
-            className="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
-          >
-            Stop
-          </button>
-        ) : (
-          <button
-            type="submit"
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            Send
-          </button>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-1.5">
+        {validationError && (
+          <span role="alert" className="text-xs font-medium text-red-600 dark:text-red-400">
+            {validationError}
+          </span>
         )}
+        <div className="flex gap-2">
+          <input
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              if (validationError) setValidationError(null);
+            }}
+            placeholder="Ask about a movie..."
+            className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:focus:border-zinc-600"
+          />
+          {isBusy ? (
+            <button
+              type="button"
+              onClick={() => stop()}
+              className="rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+            >
+              Stop
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Send
+            </button>
+          )}
+        </div>
       </form>
     </div>
   );

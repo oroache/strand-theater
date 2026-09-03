@@ -18,10 +18,15 @@ const BOTTOM_THRESHOLD_PX = 64;
 // token of a response arrives.
 function ThinkingDots() {
   return (
-    <span className="flex items-center gap-1 py-0.5">
+    <span
+      role="status"
+      aria-label="Thinking"
+      className="flex items-center gap-1 py-0.5"
+    >
       {[0, 1, 2].map((i) => (
         <span
           key={i}
+          aria-hidden="true"
           className="h-1.5 w-1.5 animate-bounce rounded-full bg-zinc-400 dark:bg-zinc-500"
           style={{ animationDelay: `${i * 150}ms` }}
         />
@@ -360,7 +365,10 @@ export default function ChatPage() {
                 amber styling so it doesn't read as a connection problem. */}
             {error && isRateLimitError(error.message || "") && (
               <div className="flex justify-start">
-                <div className="flex max-w-[75%] flex-col items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+                <div
+                  role="alert"
+                  className="flex max-w-[75%] flex-col items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300"
+                >
                   <span className="flex items-center gap-1.5">
                     <Clock className="h-4 w-4 shrink-0" />
                     You&apos;re sending messages too quickly. Please wait a
@@ -378,7 +386,10 @@ export default function ChatPage() {
             )}
             {error && !isRateLimitError(error.message || "") && (
               <div className="flex justify-start">
-                <div className="flex max-w-[75%] flex-col items-start gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+                <div
+                  role="alert"
+                  className="flex max-w-[75%] flex-col items-start gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
+                >
                   <span>
                     {error.message || "Something went wrong. Please try again."}
                   </span>

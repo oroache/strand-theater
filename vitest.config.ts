@@ -12,5 +12,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
+    // The default "forks" pool can't spawn child processes in some sandboxed
+    // dev environments (this one included); "threads" works everywhere.
+    pool: "threads",
   },
 });

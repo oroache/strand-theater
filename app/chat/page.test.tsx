@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import ChatPage from "./page";
@@ -111,5 +112,109 @@ describe("ChatPage message rendering", () => {
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent(/sending messages too quickly/i);
     expect(alert).not.toHaveTextContent("Rate limit exceeded (429)");
+  });
+});
+
+describe("ChatPage input validation", () => {
+  it("shows a validation error with role=alert when submitting an empty message", async () => {
+    mockUseChat({ messages: [] });
+    const user = userEvent.setup();
+
+    render(<ChatPage />);
+
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Please enter a message"
+    );
+  });
+
+  it("clears the validation error once the user starts typing again", async () => {
+    mockUseChat({ messages: [] });
+    const user = userEvent.setup();
+
+    render(<ChatPage />);
+
+    await user.click(screen.getByRole("button", { name: /send/i }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Please enter a message"
+    );
+
+    await user.type(screen.getByRole("textbox", { name: /message/i }), "H");
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("MovieResultCard", () => {
+  it("renders the title, year, and rating from complete movie data", () => {
+    mockUseChat({
+      messages: [
+        {
+          id: "a1",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-searchMovie",
+              toolCallId: "call1",
+              state: "output-available",
+              input: { title: "Inception" },
+              output: {
+                Title: "Inception",
+                Year: "2010",
+                Poster: "https://example.com/inception.jpg",
+                Plot: "A thief who steals corporate secrets...",
+                imdbRating: "8.8",
+              },
+            },
+          ],
+        } as unknown as UIMessage,
+      ],
+    });
+
+    render(<ChatPage />);
+
+    expect(
+      screen.getByRole("img", { name: /inception poster/i })
+    ).toBeInTheDocument();
+    expect(screen.getByText("Inception")).toBeInTheDocument();
+    expect(screen.getByText("2010")).toBeInTheDocument();
+    expect(screen.getByText("8.8")).toBeInTheDocument();
+  });
+
+  it("falls back to the searched title instead of blank/undefined when Title is missing", () => {
+    mockUseChat({
+      messages: [
+        {
+          id: "a1",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-searchMovie",
+              toolCallId: "call1",
+              state: "output-available",
+              input: { title: "The Matrix" },
+              output: {
+                // Title missing/malformed, as with the real OMDB bug this
+                // fallback guards against.
+                Title: undefined,
+                Year: "1999",
+                Poster: "https://example.com/matrix.jpg",
+                Plot: "A hacker discovers reality is a simulation...",
+                imdbRating: "8.7",
+              },
+            },
+          ],
+        } as unknown as UIMessage,
+      ],
+    });
+
+    render(<ChatPage />);
+
+    expect(
+      screen.getByRole("img", { name: /the matrix poster/i })
+    ).toBeInTheDocument();
+    expect(screen.getByText("The Matrix")).toBeInTheDocument();
+    expect(screen.queryByText("undefined")).not.toBeInTheDocument();
   });
 });

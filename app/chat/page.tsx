@@ -424,7 +424,11 @@ export default function ChatPage() {
           </span>
         )}
         <div className="flex gap-2">
+          <label htmlFor="chat-message-input" className="sr-only">
+            Message
+          </label>
           <input
+            id="chat-message-input"
             value={input}
             onChange={(e) => {
               setInput(e.target.value);

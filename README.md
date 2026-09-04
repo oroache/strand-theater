@@ -50,6 +50,14 @@ Rendered in the chat UI (`app/chat/page.tsx`) as a `MovieResultCard` on the tool
 
 **Failure** — if OMDB returns no match, the tool throws an `Error` with a readable message (e.g. `OMDB search for "<title>" failed: Movie not found!`). This surfaces as the tool part's `output-error` state and is rendered as a `SearchMovieErrorCard` showing the attempted title.
 
+## 3D Demo
+
+`app/demo/3d` is an interactive 3D clapperboard built with [React Three Fiber](https://r3f.docs.pmnd.rs/). Drag to orbit the camera, scroll to zoom, and click anywhere on the scene to toggle the arm open/closed, with hover feedback on the board.
+
+**Performance note:** the clapperboard is entirely procedural geometry — no loaded model files — so it adds very little to the bundle. The canvas itself is lazy-loaded via `next/dynamic` with `ssr: false`, and for users with `prefers-reduced-motion` set, a static SVG illustration is shown instead, so Three.js is never even fetched for them.
+
+**What I'd add with more time:** real physical hinge constraints on the arm instead of a simple open/closed rotation, a clap sound effect, and some texture/material detail (wood grain, chalk scuffing) on the board surface instead of flat colors.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
